@@ -7,24 +7,25 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const TOTAL = 20;
 const SECONDS = 15;
-const LEADER_LIMIT = 20;
+const LEADER_LIMIT = 99999;
 
 const state = {
-  phase: "login",
-  studentName: "",
-  studentId: "",
-  score: 0,
-  idx: 0,
-  questions: [],
-  timeLeft: SECONDS,
-  timerId: null,
-  locked: false,
-  overlayText: "",
-  overlayDetail: "",
-  overlayOk: false,
-  leaderboard: [],
-  leaderboardError: "",
-  toast: "",
+  phase:"login",
+  studentName:"",
+  studentId:"",
+  score:0,
+  idx:0,
+  questions:[],
+  timeLeft:SECONDS,
+  timerId:null,
+  locked:false,
+
+  startTime:0,
+  endTime:0,
+
+  overlayText:"",
+  overlayDetail:"",
+  overlayOk:false
 };
 
 boot();
@@ -239,7 +240,7 @@ function renderLeaderPreview() {
   if (state.leaderboardError) {
     list.appendChild(el("div", { class: "subtitle" }, [state.leaderboardError]));
   } else {
-    state.leaderboard.slice(0, 5).forEach((r, i) => {
+    state.leaderboard.forEach((r, i) => {
       list.appendChild(
         el("div", { class: "leader-row" }, [
           el("div", { class: "rank" }, [`#${i + 1}`]),
@@ -327,7 +328,7 @@ async function startGame() {
     toast("請先輸入名字");
     return;
   }
-
+  state.startTime = Date.now();
   state.phase = "playing";
   state.score = 0;
   state.idx = 0;
@@ -473,6 +474,10 @@ async function finishGame() {
   await upsertBestScore();
   await refreshLeaderboard();
   render();
+  state.endTime = Date.now();
+
+  const totalSeconds =
+    Math.floor((state.endTime - state.startTime) / 1000);
 }
 
 async function upsertBestScore() {
