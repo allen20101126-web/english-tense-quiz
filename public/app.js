@@ -35,11 +35,19 @@ const state = {
 
 boot();
 
+boot();
+
 async function boot() {
-  mountMouseGlow();
-  await ensureAnonAuth();
-  await refreshLeaderboard();
-  render();
+  try {
+    mountMouseGlow();
+    renderLoading();
+    await ensureAnonAuth();
+    await refreshLeaderboard();
+    render();
+  } catch (err) {
+    console.error("boot error:", err);
+    renderFatal(err);
+  }
 }
 
 async function ensureAnonAuth() {
@@ -614,4 +622,36 @@ function formatSeconds(totalSec) {
   const min = Math.floor(s / 60);
   const sec = s % 60;
   return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+}
+function renderLoading() {
+  const root = document.getElementById("app");
+  if (!root) return;
+
+  root.innerHTML = `
+    <div class="page">
+      <div class="card">
+        <div class="inner">
+          <div class="title">⏱️ 時態練習 | 20 題</div>
+          <div class="subtitle">載入中…</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFatal(err) {
+  const root = document.getElementById("app");
+  if (!root) return;
+
+  root.innerHTML = `
+    <div class="page">
+      <div class="card">
+        <div class="inner">
+          <div class="title">網站載入失敗</div>
+          <div class="subtitle">請打開 F12 看主控台錯誤</div>
+          <pre style="white-space:pre-wrap; color:#ffb4b4; font-size:14px;">${String(err)}</pre>
+        </div>
+      </div>
+    </div>
+  `;
 }
