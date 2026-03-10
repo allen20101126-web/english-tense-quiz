@@ -1,31 +1,36 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = "https://kcnkdjzorcmmbsczehik.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_0-jWBjVsawY9Ranq0Gja4g_958sl9k4"
+const SUPABASE_ANON_KEY = "sb_publishable_0-jWBjVsawY9Ranq0Gja4g_958sl9k4";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const TOTAL = 20;
 const SECONDS = 15;
-const LEADER_LIMIT = 99999;
+const LEADER_LIMIT = 9999;
 
 const state = {
-  phase:"login",
-  studentName:"",
-  studentId:"",
-  score:0,
-  idx:0,
-  questions:[],
-  timeLeft:SECONDS,
-  timerId:null,
-  locked:false,
+  phase: "login", // login | playing | finished
+  studentName: "",
+  studentId: "",
+  score: 0,
+  idx: 0,
+  questions: [],
+  timeLeft: SECONDS,
+  timerId: null,
+  locked: false,
 
-  startTime:0,
-  endTime:0,
+  startTime: 0,
+  endTime: 0,
+  totalElapsedSec: 0,
 
-  overlayText:"",
-  overlayDetail:"",
-  overlayOk:false
+  overlayText: "",
+  overlayDetail: "",
+  overlayOk: false,
+
+  leaderboard: [],
+  leaderboardError: "",
+  toast: "",
 };
 
 boot();
@@ -33,16 +38,17 @@ boot();
 async function boot() {
   mountMouseGlow();
   await ensureAnonAuth();
+  await refreshLeaderboard();
   render();
 }
 
 async function ensureAnonAuth() {
-  const { data: s } = await supabase.auth.getSession();
-  if (!s?.session) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session) {
     await supabase.auth.signInAnonymously();
   }
-  const { data: u } = await supabase.auth.getUser();
-  state.studentId = u?.user?.id || crypto.randomUUID();
+  const { data: userData } = await supabase.auth.getUser();
+  state.studentId = userData?.user?.id || crypto.randomUUID();
 }
 
 function mountMouseGlow() {
@@ -64,8 +70,8 @@ function mountMouseGlow() {
   });
 
   function animateGlow() {
-    currentX += (mouseX - currentX) * 0.10;
-    currentY += (mouseY - currentY) * 0.10;
+    currentX += (mouseX - currentX) * 0.1;
+    currentY += (mouseY - currentY) * 0.1;
     glow.style.left = currentX + "px";
     glow.style.top = currentY + "px";
     requestAnimationFrame(animateGlow);
@@ -76,28 +82,34 @@ function mountMouseGlow() {
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
+
   for (const [k, v] of Object.entries(attrs)) {
-    if (k === "class") node.className = v;
-    else if (k.startsWith("on") && typeof v === "function") {
-      node.addEventListener(k.slice(2).toLowerCase(), v);
+    if (k === "class") {
+      node.className = v;
     } else if (k === "value") {
       node.value = v;
     } else if (k === "style") {
       node.setAttribute("style", v);
+    } else if (k.startsWith("on") && typeof v === "function") {
+      node.addEventListener(k.slice(2).toLowerCase(), v);
     } else {
       node.setAttribute(k, v);
     }
   }
+
   for (const c of children) {
     if (c == null) continue;
     if (typeof c === "string") node.appendChild(document.createTextNode(c));
     else node.appendChild(c);
   }
+
   return node;
 }
 
 function render() {
   const root = document.getElementById("app");
+  if (!root) return;
+
   root.innerHTML = "";
 
   const page = el("div", { class: "page" });
@@ -125,7 +137,7 @@ function renderLogin() {
     el("div", { class: "topbar" }, [
       el("div", { class: "title" }, ["⏱️ 時態練習 | 20 題"]),
       el("div", { class: "row" }, [
-        el("button", { class: "btn btn-secondary", onClick: openLeaderboard }, ["看排行榜"]),
+        el("button", { class: "btn btn-secondary", onClick: openLeaderboardModal }, ["看排行榜"]),
       ]),
     ])
   );
@@ -155,13 +167,15 @@ function renderLogin() {
 }
 
 function renderGame() {
-  const q = state.questions[state.idx];
   const wrap = document.createElement("div");
+  const q = state.questions[state.idx];
 
   wrap.appendChild(
     el("div", { class: "hud" }, [
       el("div", { class: "hud-text" }, [
-        `玩家 ${state.studentName}　第 ${state.idx + 1}/${TOTAL} 題　分數 ${state.score}`,
+        `玩家 ${state.studentName}　第 ${state.idx + 1}/${TOTAL} 題　分數 ${state.score}　⏱ ${formatSeconds(
+          state.totalElapsedSec
+        )}`,
       ]),
       renderTimer(),
     ])
@@ -176,8 +190,10 @@ function renderGame() {
 
   wrap.appendChild(el("div", { class: "question" }, [q.sentence]));
 
+  const choices = Array.isArray(q.choices) ? q.choices : [];
   const grid = el("div", { class: "choices" });
-  q.choices.forEach((c, i) => {
+
+  choices.forEach((choiceText, i) => {
     grid.appendChild(
       el(
         "button",
@@ -185,7 +201,7 @@ function renderGame() {
           class: "choice",
           onClick: () => onChoose(i),
         },
-        [String(c)]
+        [String(choiceText)]
       )
     );
   });
@@ -195,6 +211,7 @@ function renderGame() {
   wrap.appendChild(
     el("div", { class: "bottom-bar row-right" }, [
       el("button", { class: "btn btn-secondary", onClick: restartGame }, ["重新開始"]),
+      el("button", { class: "btn btn-secondary", onClick: openLeaderboardModal }, ["看排行榜"]),
     ])
   );
 
@@ -208,7 +225,7 @@ function renderFinish() {
     el("div", { class: "topbar" }, [
       el("div", { class: "title" }, ["🎉 完成"]),
       el("div", { class: "row" }, [
-        el("button", { class: "btn btn-secondary", onClick: openLeaderboard }, ["看排行榜"]),
+        el("button", { class: "btn btn-secondary", onClick: openLeaderboardModal }, ["看排行榜"]),
       ]),
     ])
   );
@@ -216,7 +233,7 @@ function renderFinish() {
   wrap.appendChild(
     el("div", { class: "finish-box" }, [
       el("div", { class: "leader-title" }, [`你的分數：${state.score} / ${TOTAL}`]),
-      el("div", { class: "subtitle" }, ["排行榜只保留同一人的最高分"]),
+      el("div", { class: "subtitle" }, [`總時間：${formatSeconds(state.totalElapsedSec)}`]),
       el("div", { class: "row" }, [
         el("button", { class: "btn btn-primary", onClick: restartGame }, ["再玩一次"]),
       ]),
@@ -245,7 +262,9 @@ function renderLeaderPreview() {
         el("div", { class: "leader-row" }, [
           el("div", { class: "rank" }, [`#${i + 1}`]),
           el("div", { class: "name" }, [r.student_name || "（無名）"]),
-          el("div", { class: "score" }, [String(r.best_score ?? 0)]),
+          el("div", { class: "score" }, [
+            `${r.best_score ?? 0}${r.best_time_sec != null ? ` / ${formatSeconds(r.best_time_sec)}` : ""}`,
+          ]),
         ])
       );
     });
@@ -289,17 +308,61 @@ function renderTimer() {
   ]);
 }
 
-async function openLeaderboard() {
+async function openLeaderboardModal() {
   await refreshLeaderboard();
-  render();
+
+  const modalOverlay = document.createElement("div");
+  modalOverlay.className = "modalOverlay";
+
+  const modal = el("div", { class: "modal" }, [
+    el("div", { class: "modalTitle" }, ["🏆 所有人排行榜"]),
+    el(
+      "div",
+      { class: "modalBody" },
+      state.leaderboardError
+        ? [el("div", { class: "err" }, [state.leaderboardError])]
+        : [
+            el(
+              "div",
+              { class: "lb" },
+              state.leaderboard.map((r, i) =>
+                el("div", { class: "lbRow" }, [
+                  el("div", { class: "lbRank" }, [`#${i + 1}`]),
+                  el("div", { class: "lbName" }, [r.student_name || "（無名）"]),
+                  el("div", { class: "lbScore" }, [
+                    `${r.best_score ?? 0}${r.best_time_sec != null ? ` / ${formatSeconds(r.best_time_sec)}` : ""}`,
+                  ]),
+                ])
+              )
+            ),
+          ]
+    ),
+    el("div", { class: "modalActions" }, [
+      el("button", {
+        class: "btn btn-secondary",
+        onClick: () => {
+          modalOverlay.remove();
+        },
+      }, ["關閉"]),
+    ]),
+  ]);
+
+  modalOverlay.addEventListener("click", (e) => {
+    if (e.target === modalOverlay) modalOverlay.remove();
+  });
+
+  modalOverlay.appendChild(modal);
+  document.body.appendChild(modalOverlay);
 }
 
 async function refreshLeaderboard() {
   state.leaderboardError = "";
+
   const { data, error } = await supabase
     .from("leaderboard")
-    .select("student_name,best_score,updated_at")
+    .select("student_name,best_score,best_time_sec,updated_at")
     .order("best_score", { ascending: false })
+    .order("best_time_sec", { ascending: true, nullsFirst: false })
     .order("updated_at", { ascending: true })
     .limit(LEADER_LIMIT);
 
@@ -328,7 +391,7 @@ async function startGame() {
     toast("請先輸入名字");
     return;
   }
-  state.startTime = Date.now();
+
   state.phase = "playing";
   state.score = 0;
   state.idx = 0;
@@ -337,7 +400,17 @@ async function startGame() {
   state.overlayDetail = "";
   state.timeLeft = SECONDS;
 
+  state.startTime = Date.now();
+  state.endTime = 0;
+  state.totalElapsedSec = 0;
+
   await loadQuestions();
+  if (!state.questions.length) {
+    state.phase = "login";
+    render();
+    return;
+  }
+
   startTimer();
   render();
 }
@@ -375,12 +448,14 @@ async function loadQuestions() {
     return;
   }
 
-  state.questions = (data || []).map((q) => ({
-    id: q.id,
-    sentence: String(q.sentence || ""),
-    choices: Array.isArray(q.choices) ? q.choices.map((x) => String(x)) : [],
-    correct_index: Number(q.correct_index),
-  }));
+  state.questions = (data || [])
+    .map((q) => ({
+      id: q.id,
+      sentence: String(q.sentence || ""),
+      choices: Array.isArray(q.choices) ? q.choices.map((x) => String(x)) : [],
+      correct_index: Number(q.correct_index),
+    }))
+    .filter((q) => q.sentence && Array.isArray(q.choices) && q.choices.length === 4 && Number.isInteger(q.correct_index));
 }
 
 function startTimer() {
@@ -390,16 +465,28 @@ function startTimer() {
     if (state.phase !== "playing") return;
     if (state.locked) return;
 
+    state.totalElapsedSec = Math.floor((Date.now() - state.startTime) / 1000);
+
     state.timeLeft -= 1;
 
     if (state.timeLeft <= 0) {
       state.timeLeft = 0;
       const q = state.questions[state.idx];
+
       state.locked = true;
       state.overlayOk = false;
       state.overlayText = "⏰ 超時";
       state.overlayDetail = q ? `正確答案：${q.choices[q.correct_index]}` : "";
       render();
+
+      requestAnimationFrame(() => {
+        const btns = Array.from(document.querySelectorAll(".choice"));
+        btns.forEach((b, i) => {
+          b.disabled = true;
+          if (q && i === q.correct_index) b.classList.add("correct");
+          else b.classList.add("dim");
+        });
+      });
 
       setTimeout(() => {
         state.overlayText = "";
@@ -424,10 +511,11 @@ function onChoose(choiceIndex) {
   if (state.locked) return;
 
   const q = state.questions[state.idx];
-  if (!q) return;
+  if (!q || !Array.isArray(q.choices) || q.choices.length !== 4) return;
 
   state.locked = true;
   stopTimer();
+  state.totalElapsedSec = Math.floor((Date.now() - state.startTime) / 1000);
 
   const ok = choiceIndex === q.correct_index;
   if (ok) state.score += 1;
@@ -471,25 +559,36 @@ function nextQuestion() {
 async function finishGame() {
   stopTimer();
   state.phase = "finished";
+  state.endTime = Date.now();
+  state.totalElapsedSec = Math.floor((state.endTime - state.startTime) / 1000);
+
   await upsertBestScore();
   await refreshLeaderboard();
   render();
-  state.endTime = Date.now();
-
-  const totalSeconds =
-    Math.floor((state.endTime - state.startTime) / 1000);
 }
 
 async function upsertBestScore() {
   try {
     const { data: row } = await supabase
       .from("leaderboard")
-      .select("best_score")
+      .select("best_score,best_time_sec")
       .eq("student_id", state.studentId)
       .maybeSingle();
 
-    const prev = Number(row?.best_score ?? -1);
-    const best = Math.max(prev, state.score);
+    const prevScore = Number(row?.best_score ?? -1);
+    const prevTime = row?.best_time_sec == null ? null : Number(row.best_time_sec);
+
+    let bestScore = prevScore;
+    let bestTime = prevTime;
+
+    if (state.score > prevScore) {
+      bestScore = state.score;
+      bestTime = state.totalElapsedSec;
+    } else if (state.score === prevScore) {
+      if (prevTime == null || state.totalElapsedSec < prevTime) {
+        bestTime = state.totalElapsedSec;
+      }
+    }
 
     const { error } = await supabase
       .from("leaderboard")
@@ -497,7 +596,8 @@ async function upsertBestScore() {
         {
           student_id: state.studentId,
           student_name: state.studentName,
-          best_score: best,
+          best_score: bestScore,
+          best_time_sec: bestTime,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "student_id" }
@@ -507,4 +607,11 @@ async function upsertBestScore() {
   } catch (e) {
     console.error("upsertBestScore error:", e);
   }
+}
+
+function formatSeconds(totalSec) {
+  const s = Number(totalSec || 0);
+  const min = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
