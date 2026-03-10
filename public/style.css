@@ -17,27 +17,25 @@ body{
 *{box-sizing:border-box}
 
 .mouse-glow{
-  position:fixed;
-  width:720px;
-  height:720px;
-  border-radius:999px;
-  pointer-events:none;
-  z-index:0;
-  transform:translate(-50%,-50%);
-  background:
-    radial-gradient(circle at 50% 50%,
-      rgba(120,180,255,.16) 0%,
-      rgba(120,180,255,.10) 20%,
-      rgba(120,180,255,.05) 38%,
-      transparent 62%),
-    radial-gradient(circle at 54% 46%,
-      rgba(190,120,255,.13) 0%,
-      rgba(190,120,255,.08) 22%,
-      rgba(190,120,255,.03) 42%,
-      transparent 68%);
-  filter:blur(32px);
-  opacity:.95;
-  transition:opacity .25s ease;
+position:fixed;
+width:700px;
+height:700px;
+border-radius:999px;
+pointer-events:none;
+z-index:0;
+transform:translate(-50%,-50%);
+background:
+radial-gradient(circle,
+rgba(120,180,255,.25) 0%,
+rgba(120,180,255,.18) 20%,
+rgba(120,180,255,.1) 40%,
+transparent 65%),
+radial-gradient(circle,
+rgba(200,120,255,.18) 0%,
+rgba(200,120,255,.12) 25%,
+transparent 60%);
+filter:blur(30px);
+transition:.05s;
 }
 
 .page{
@@ -567,5 +565,69 @@ body{
   .btn{
     font-size:15px;
     padding:13px 15px;
+  }
+}
+.leader-row{
+  animation:leaderFade .5s ease;
+  transition:.2s;
+}
+
+.leader-row:hover{
+  transform:scale(1.03);
+  background:rgba(255,255,255,.08);
+}
+
+.leader-row:nth-child(1){
+  background:linear-gradient(90deg,#ffd70033,#ffd70011);
+}
+
+.leader-row:nth-child(2){
+  background:linear-gradient(90deg,#c0c0c033,#c0c0c011);
+}
+
+.leader-row:nth-child(3){
+  background:linear-gradient(90deg,#cd7f3233,#cd7f3211);
+}
+
+@keyframes leaderFade{
+  from{
+    opacity:0;
+    transform:translateY(10px);
+  }
+  to{
+    opacity:1;
+    transform:translateY(0);
+  }
+}
+.leader-row{
+  animation:leaderFade .5s ease;
+  transition:.2s;
+}
+
+.leader-row:hover{
+  transform:scale(1.03);
+  background:rgba(255,255,255,.08);
+}
+
+.leader-row:nth-child(1){
+  background:linear-gradient(90deg,#ffd70033,#ffd70011);
+}
+
+.leader-row:nth-child(2){
+  background:linear-gradient(90deg,#c0c0c033,#c0c0c011);
+}
+
+.leader-row:nth-child(3){
+  background:linear-gradient(90deg,#cd7f3233,#cd7f3211);
+}
+
+@keyframes leaderFade{
+  from{
+    opacity:0;
+    transform:translateY(10px);
+  }
+  to{
+    opacity:1;
+    transform:translateY(0);
   }
 }
