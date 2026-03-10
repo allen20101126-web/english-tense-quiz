@@ -52,10 +52,25 @@ function mountMouseGlow() {
     document.body.appendChild(glow);
   }
 
+  let mouseX = window.innerWidth / 2;
+  let mouseY = window.innerHeight / 2;
+  let currentX = mouseX;
+  let currentY = mouseY;
+
   window.addEventListener("mousemove", (e) => {
-    glow.style.left = e.clientX + "px";
-    glow.style.top = e.clientY + "px";
+    mouseX = e.clientX;
+    mouseY = e.clientY;
   });
+
+  function animateGlow() {
+    currentX += (mouseX - currentX) * 0.10;
+    currentY += (mouseY - currentY) * 0.10;
+    glow.style.left = currentX + "px";
+    glow.style.top = currentY + "px";
+    requestAnimationFrame(animateGlow);
+  }
+
+  animateGlow();
 }
 
 function el(tag, attrs = {}, children = []) {
