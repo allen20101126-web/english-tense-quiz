@@ -10,5 +10,35 @@
 <body>
   <div id="app"></div>
   <script type="module" src="./app.js"></script>
+  <!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>時態練習 | 20題</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="app"></div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-links">
+        <a href="https://discord.gg/cFNazvBFxR" target="_blank" rel="noreferrer">加入 Discord 社群</a>
+        <span>Email: allen20101126@gmail.com</span>
+      </div>
+      <div class="footer-bottom">
+        <span>© <span id="year"></span> 堂主 All rights reserved.(最終解釋權歸堂主所有)</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
 </body>
 </html>
